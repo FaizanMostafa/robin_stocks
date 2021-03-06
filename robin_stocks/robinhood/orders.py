@@ -367,7 +367,10 @@ def order_buy_fractional_by_price(symbol, amountInDollars, timeInForce='gfd', ex
     """ 
     if amountInDollars < 1:
         print("ERROR: Fractional share price should meet minimum 1.00.", file=get_output())
-        return None
+        return ({
+            "status": 500,
+            "message": "Fractional share price should meet minimum 1.00"
+        })
 
     # turn the money amount into decimal number of shares
     price = next(iter(get_latest_price(symbol, 'ask_price', extendedHours)), 0.00)
@@ -553,7 +556,10 @@ def order_sell_fractional_by_price(symbol, amountInDollars, timeInForce='gfd', e
     """ 
     if amountInDollars < 1:
         print("ERROR: Fractional share price should meet minimum 1.00.", file=get_output())
-        return None
+        return ({
+            "status": 500,
+            "message": "Fractional share price should meet minimum 1.00"
+        })
     # turn the money amount into decimal number of shares
     price = next(iter(get_latest_price(symbol, 'bid_price', extendedHours)), 0.00)
     fractional_shares = 0 if (price == 0.00) else round_price(amountInDollars/float(price))
