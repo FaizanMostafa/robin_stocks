@@ -163,15 +163,14 @@ def login(username=None, password=None, expiresIn=86400, scope='internal', by_sm
             data = res.json()
         elif 'challenge' in data:
             challenge_id = data['challenge']['id']
-            sms_code = input('Enter Robinhood code for validation: ')
-            res = respond_to_challenge(challenge_id, sms_code)
-            while 'challenge' in res and res['challenge']['remaining_attempts'] > 0:
-                sms_code = input('That code was not correct. {0} tries remaining. Please type in another code: '.format(
-                    res['challenge']['remaining_attempts']))
-                res = respond_to_challenge(challenge_id, sms_code)
-            update_session(
-                'X-ROBINHOOD-CHALLENGE-RESPONSE-ID', challenge_id)
-            data = request_post(url, payload)
+            res = {
+                "otp_essential_data": {
+                    "challenge_id": challenge_id,
+                    "device_token": device_token,
+                },
+                "message": "Please provide otp code!"
+            }
+            return res
         # Update Session data with authorization or raise exception with the information present in data.
         if 'access_token' in data:
             token = '{0} {1}'.format(data['token_type'], data['access_token'])
@@ -190,6 +189,46 @@ def login(username=None, password=None, expiresIn=86400, scope='internal', by_sm
         raise Exception('Error: Trouble connecting to robinhood API. Check internet connection.')
     return(data)
 
+def verify_otp(username, password, challenge_id, device_token, sms_code, expires_in=86400, scope='internal', store_session=True,):
+    url = login_url()
+    home_dir = os.path.expanduser("~")
+    data_dir = os.path.join(home_dir, ".tokens")
+    creds_file = "robinhood.pickle"
+    pickle_path = os.path.join(data_dir, creds_file)
+    payload = {
+        'client_id': 'c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS',
+        'expires_in': expires_in,
+        'grant_type': 'password',
+        'password': password,
+        'scope': scope,
+        'username': username,
+        'challenge_type': "sms",
+        'device_token': device_token
+    }
+    res = respond_to_challenge(challenge_id, sms_code)
+    while 'challenge' in res and res['challenge']['remaining_attempts'] > 0:
+        sms_code = input('That code was not correct. {0} tries remaining. Please type in another code: '.format(
+            res['challenge']['remaining_attempts']))
+        res = respond_to_challenge(challenge_id, sms_code)
+    update_session(
+        'X-ROBINHOOD-CHALLENGE-RESPONSE-ID', challenge_id)
+    data = request_post(url, payload)
+    # Update Session data with authorization or raise exception with the information present in data.
+    if 'access_token' in data:
+        token = '{0} {1}'.format(data['token_type'], data['access_token'])
+        update_session('Authorization', token)
+        set_login_state(True)
+        data['message'] = "Robinhood account is linked successfully!"
+        data['status'] = 200
+        if store_session:
+            with open(pickle_path, 'wb') as f:
+                pickle.dump({'token_type': data['token_type'],
+                                'access_token': data['access_token'],
+                                'refresh_token': data['refresh_token'],
+                                'device_token': device_token}, f)
+    else:
+        raise Exception(data['detail'])
+    return(data)
 
 @login_required
 def logout():
@@ -200,3 +239,8 @@ def logout():
     """
     set_login_state(False)
     update_session('Authorization', None)
+    response = {
+        "status": 200,
+        "message": "Successfully logged out from robinhood account!"
+    }
+    return(response)
